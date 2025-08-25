@@ -1,6 +1,6 @@
 'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Palette, Square, Eraser, RotateCcw, Download, Grid3X3, Settings } from 'lucide-react';
+import { Palette, Square, Eraser, RotateCcw, Download, Grid3x3, Settings } from 'lucide-react';
 
 const GRID_SIZE = 30;
 const COLORS = [
@@ -12,278 +12,76 @@ const COLORS = [
 const STORAGE_KEY = 'pixelArtCanvas';
 const HIGH_SCORE_KEY = 'pixelArtHighScore';
 
-// Pattern detection functions
-const detectPatterns = (grid) => {
-  const patterns = [];
-  
-  // Detect rectangles
-  const rectangles = detectRectangles(grid);
-  patterns.push(...rectangles);
-  
-  // Detect lines
-  const lines = detectLines(grid);
-  patterns.push(...lines);
-  
-  // Detect filled areas
-  const filledAreas = detectFilledAreas(grid);
-  patterns.push(...filledAreas);
-  
-  return patterns;
+// Safe localStorage wrapper
+const getFromStorage = (key, defaultValue) => {
+  if (typeof window !== 'undefined') {
+    try {
+      const item = localStorage.getItem(key);
+      return item ? JSON.parse(item) : defaultValue;
+    } catch (error) {
+      console.error('Error reading from localStorage:', error);
+      return defaultValue;
+    }
+  }
+  return defaultValue;
 };
 
-const detectRectangles = (grid) => {
-  const rectangles = [];
-  const visited = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(false));
-  
-  for (let i = 0; i < GRID_SIZE; i++) {
-    for (let j = 0; j < GRID_SIZE; j++) {
-      if (!visited[i][j] && grid[i][j] !== '#FFFFFF') {
-        const rect = findRectangle(grid, i, j, visited);
-        if (rect && rect.width >= 3 && rect.height >= 3) {
-          rectangles.push({
-            type: 'Rectangle',
-            x: rect.x,
-            y: rect.y,
-            width: rect.width,
-            height: rect.height,
-            color: grid[i][j]
-          });
-        }
-      }
+const saveToStorage = (key, value) => {
+  if (typeof window !== 'undefined') {
+    try {
+      localStorage.setItem(key, JSON.stringify(value));
+    } catch (error) {
+      console.error('Error saving to localStorage:', error);
     }
   }
-  
-  return rectangles;
-};
-
-const findRectangle = (grid, startX, startY, visited) => {
-  const color = grid[startX][startY];
-  let width = 0;
-  let height = 0;
-  
-  // Find width
-  for (let j = startY; j < GRID_SIZE && grid[startX][j] === color; j++) {
-    width++;
-  }
-  
-  // Find height
-  for (let i = startX; i < GRID_SIZE; i++) {
-    let validRow = true;
-    for (let j = startY; j < startY + width; j++) {
-      if (j >= GRID_SIZE || grid[i][j] !== color) {
-        validRow = false;
-        break;
-      }
-    }
-    if (validRow) {
-      height++;
-    } else {
-      break;
-    }
-  }
-  
-  // Mark as visited
-  for (let i = startX; i < startX + height; i++) {
-    for (let j = startY; j < startY + width; j++) {
-      if (i < GRID_SIZE && j < GRID_SIZE) {
-        visited[i][j] = true;
-      }
-    }
-  }
-  
-  return { x: startX, y: startY, width, height };
-};
-
-const detectLines = (grid) => {
-  const lines = [];
-  
-  // Horizontal lines
-  for (let i = 0; i < GRID_SIZE; i++) {
-    let lineStart = -1;
-    let currentColor = null;
-    
-    for (let j = 0; j < GRID_SIZE; j++) {
-      if (grid[i][j] !== '#FFFFFF') {
-        if (lineStart === -1) {
-          lineStart = j;
-          currentColor = grid[i][j];
-        } else if (grid[i][j] !== currentColor) {
-          if (j - lineStart >= 5) {
-            lines.push({
-              type: 'Horizontal Line',
-              x: i,
-              y: lineStart,
-              length: j - lineStart,
-              color: currentColor
-            });
-          }
-          lineStart = j;
-          currentColor = grid[i][j];
-        }
-      } else {
-        if (lineStart !== -1 && j - lineStart >= 5) {
-          lines.push({
-            type: 'Horizontal Line',
-            x: i,
-            y: lineStart,
-            length: j - lineStart,
-            color: currentColor
-          });
-        }
-        lineStart = -1;
-        currentColor = null;
-      }
-    }
-    
-    if (lineStart !== -1 && GRID_SIZE - lineStart >= 5) {
-      lines.push({
-        type: 'Horizontal Line',
-        x: i,
-        y: lineStart,
-        length: GRID_SIZE - lineStart,
-        color: currentColor
-      });
-    }
-  }
-  
-  // Vertical lines
-  for (let j = 0; j < GRID_SIZE; j++) {
-    let lineStart = -1;
-    let currentColor = null;
-    
-    for (let i = 0; i < GRID_SIZE; i++) {
-      if (grid[i][j] !== '#FFFFFF') {
-        if (lineStart === -1) {
-          lineStart = i;
-          currentColor = grid[i][j];
-        } else if (grid[i][j] !== currentColor) {
-          if (i - lineStart >= 5) {
-            lines.push({
-              type: 'Vertical Line',
-              x: lineStart,
-              y: j,
-              length: i - lineStart,
-              color: currentColor
-            });
-          }
-          lineStart = i;
-          currentColor = grid[i][j];
-        }
-      } else {
-        if (lineStart !== -1 && i - lineStart >= 5) {
-          lines.push({
-            type: 'Vertical Line',
-            x: lineStart,
-            y: j,
-            length: i - lineStart,
-            color: currentColor
-          });
-        }
-        lineStart = -1;
-        currentColor = null;
-      }
-    }
-    
-    if (lineStart !== -1 && GRID_SIZE - lineStart >= 5) {
-      lines.push({
-        type: 'Vertical Line',
-        x: lineStart,
-        y: j,
-        length: GRID_SIZE - lineStart,
-        color: currentColor
-      });
-    }
-  }
-  
-  return lines;
-};
-
-const detectFilledAreas = (grid) => {
-  const areas = [];
-  const visited = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill(false));
-  
-  for (let i = 0; i < GRID_SIZE; i++) {
-    for (let j = 0; j < GRID_SIZE; j++) {
-      if (!visited[i][j] && grid[i][j] !== '#FFFFFF') {
-        const area = floodFill(grid, i, j, visited, grid[i][j]);
-        if (area.size >= 10) {
-          areas.push({
-            type: 'Filled Area',
-            size: area.size,
-            color: grid[i][j],
-            x: area.minX,
-            y: area.minY
-          });
-        }
-      }
-    }
-  }
-  
-  return areas;
-};
-
-const floodFill = (grid, startX, startY, visited, targetColor) => {
-  const stack = [{x: startX, y: startY}];
-  let size = 0;
-  let minX = startX, minY = startY;
-  
-  while (stack.length > 0) {
-    const {x, y} = stack.pop();
-    
-    if (x < 0 || x >= GRID_SIZE || y < 0 || y >= GRID_SIZE || 
-        visited[x][y] || grid[x][y] !== targetColor) {
-      continue;
-    }
-    
-    visited[x][y] = true;
-    size++;
-    minX = Math.min(minX, x);
-    minY = Math.min(minY, y);
-    
-    stack.push({x: x + 1, y}, {x: x - 1, y}, {x, y: y + 1}, {x, y: y - 1});
-  }
-  
-  return {size, minX, minY};
 };
 
 const PixelArtCanvas = () => {
-  // Initialize grid with white background
-  const [grid, setGrid] = useState(() => {
-    const saved = localStorage.getItem(STORAGE_KEY);
-    if (saved) {
-      return JSON.parse(saved);
-    }
-    return Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill('#FFFFFF'));
-  });
+  // Initialize grid with white background - safe for SSR
+  const [grid, setGrid] = useState(() => 
+    Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill('#FFFFFF'))
+  );
   
   const [selectedColor, setSelectedColor] = useState('#000000');
   const [pixelCount, setPixelCount] = useState(0);
-  const [highScore, setHighScore] = useState(() => {
-    return parseInt(localStorage.getItem(HIGH_SCORE_KEY) || '0');
-  });
+  const [highScore, setHighScore] = useState(0);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showGrid, setShowGrid] = useState(true);
-  const [showPatterns, setShowPatterns] = useState(false);
   const [isDrawing, setIsDrawing] = useState(false);
   const [showColorPicker, setShowColorPicker] = useState(false);
   const [customHex, setCustomHex] = useState('#000000');
+  const [isClient, setIsClient] = useState(false);
   
-  // Detect patterns
-  const patterns = useMemo(() => detectPatterns(grid), [grid]);
-  
-  // Save to localStorage
+  // Load data from localStorage after component mounts
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify(grid));
-  }, [grid]);
-  
-  // Save high score
-  useEffect(() => {
-    if (pixelCount > highScore) {
-      setHighScore(pixelCount);
-      localStorage.setItem(HIGH_SCORE_KEY, pixelCount.toString());
+    setIsClient(true);
+    
+    const savedGrid = getFromStorage(STORAGE_KEY, null);
+    if (savedGrid) {
+      setGrid(savedGrid);
     }
-  }, [pixelCount, highScore]);
+    
+    const savedHighScore = getFromStorage(HIGH_SCORE_KEY, 0);
+    if (typeof savedHighScore === 'number') {
+      setHighScore(savedHighScore);
+    }
+  }, []);
+  
+  // Save to localStorage when grid changes (only on client)
+  useEffect(() => {
+    if (isClient) {
+      saveToStorage(STORAGE_KEY, grid);
+    }
+  }, [grid, isClient]);
+  
+  // Save high score when it changes (only on client)
+  useEffect(() => {
+    if (isClient && pixelCount > highScore) {
+      setHighScore(pixelCount);
+      saveToStorage(HIGH_SCORE_KEY, pixelCount);
+    }
+  }, [pixelCount, highScore, isClient]);
   
   // Add to history
   const addToHistory = useCallback((newGrid) => {
@@ -332,20 +130,6 @@ const PixelArtCanvas = () => {
       setHistoryIndex(prev => prev - 1);
     }
   }, [history, historyIndex]);
-  
-  const clearCanvas = useCallback(() => {
-    if (window.confirm('Are you sure you want to clear the canvas?')) {
-      const newGrid = Array(GRID_SIZE).fill().map(() => Array(GRID_SIZE).fill('#FFFFFF'));
-      addToHistory(grid);
-      setGrid(newGrid);
-    }
-  }, [grid, addToHistory]);
-  
-  const resetScore = useCallback(() => {
-    if (window.confirm('Reset your score? This will save your current score as high score if it\'s higher.')) {
-      setPixelCount(0);
-    }
-  }, []);
   
   const exportCanvas = useCallback(() => {
     try {
@@ -543,7 +327,7 @@ const PixelArtCanvas = () => {
                       : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
                   }`}
                 >
-                  <Grid3X3 className="w-4 h-4" />
+                  <Grid3x3 className="w-4 h-4" />
                   Grid
                 </button>
                 
