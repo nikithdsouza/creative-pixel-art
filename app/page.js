@@ -1,3 +1,4 @@
+'use client';
 import React, { useState, useEffect, useCallback, useMemo } from 'react';
 import { Palette, Square, Eraser, RotateCcw, Download, Grid3X3, Settings } from 'lucide-react';
 
