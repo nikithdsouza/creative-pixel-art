@@ -1,6 +1,6 @@
 'use client';
-import React, { useState, useEffect, useCallback, useMemo } from 'react';
-import { Palette, Square, Eraser, RotateCcw, Download, Grid3x3, Settings } from 'lucide-react';
+import React, { useState, useEffect, useCallback } from 'react';
+import { Palette, Square, Eraser, RotateCcw, Download, Hash, Settings } from 'lucide-react';
 
 const GRID_SIZE = 30;
 const COLORS = [
@@ -10,7 +10,6 @@ const COLORS = [
 ];
 
 const STORAGE_KEY = 'pixelArtCanvas';
-const HIGH_SCORE_KEY = 'pixelArtHighScore';
 
 // Safe localStorage wrapper
 const getFromStorage = (key, defaultValue) => {
@@ -43,8 +42,6 @@ const PixelArtCanvas = () => {
   );
   
   const [selectedColor, setSelectedColor] = useState('#000000');
-  const [pixelCount, setPixelCount] = useState(0);
-  const [highScore, setHighScore] = useState(0);
   const [history, setHistory] = useState([]);
   const [historyIndex, setHistoryIndex] = useState(-1);
   const [showGrid, setShowGrid] = useState(true);
@@ -61,11 +58,6 @@ const PixelArtCanvas = () => {
     if (savedGrid) {
       setGrid(savedGrid);
     }
-    
-    const savedHighScore = getFromStorage(HIGH_SCORE_KEY, 0);
-    if (typeof savedHighScore === 'number') {
-      setHighScore(savedHighScore);
-    }
   }, []);
   
   // Save to localStorage when grid changes (only on client)
@@ -74,14 +66,6 @@ const PixelArtCanvas = () => {
       saveToStorage(STORAGE_KEY, grid);
     }
   }, [grid, isClient]);
-  
-  // Save high score when it changes (only on client)
-  useEffect(() => {
-    if (isClient && pixelCount > highScore) {
-      setHighScore(pixelCount);
-      saveToStorage(HIGH_SCORE_KEY, pixelCount);
-    }
-  }, [pixelCount, highScore, isClient]);
   
   // Add to history
   const addToHistory = useCallback((newGrid) => {
@@ -101,7 +85,6 @@ const PixelArtCanvas = () => {
       
       addToHistory(grid);
       setGrid(newGrid);
-      setPixelCount(prev => prev + 1);
     }
   }, [grid, selectedColor, addToHistory]);
   
@@ -327,7 +310,7 @@ const PixelArtCanvas = () => {
                       : 'bg-slate-700/50 text-slate-300 hover:bg-slate-600/50'
                   }`}
                 >
-                  <Grid3x3 className="w-4 h-4" />
+                  <Hash className="w-4 h-4" />
                   Grid
                 </button>
                 
